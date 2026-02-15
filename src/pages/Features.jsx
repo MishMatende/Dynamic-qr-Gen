@@ -78,9 +78,9 @@ export default function Features() {
 
             <p className="mt-4 text-muted leading-relaxed">
               Whether you run a restaurant, manage events, sell products, or
-              promote online services, DynamicQR helps you connect your audience
-              to the right destination instantly — while giving you valuable
-              insights.
+              promote online services, DynamicCodes helps you connect your
+              audience to the right destination instantly — while giving you
+              valuable insights.
             </p>
 
             <div className="mt-10 grid gap-6 md:grid-cols-2">

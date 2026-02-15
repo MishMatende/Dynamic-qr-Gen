@@ -9,11 +9,11 @@ export default function About() {
           {/* About Card */}
           <div className="p-10">
             <h2 className="text-4xl font-extrabold mb-4">
-              About <span className="text-[var(--cyan)]">DynamicQR</span>
+              About <span className="text-[var(--cyan)]">DynamicCodes</span>
             </h2>
 
             <p className="text-muted leading-relaxed text-lg">
-              DynamicQR is a modern QR code platform designed to help
+              DynamicCodes is a modern QR code platform designed to help
               businesses, creators, and marketers generate QR codes that are{" "}
               <span className="text-white font-semibold">
                 dynamic, trackable, and easy to manage
@@ -22,10 +22,10 @@ export default function About() {
             </p>
 
             <p className="text-muted leading-relaxed mt-5">
-              Unlike traditional static QR codes, DynamicQR allows you to change
-              the destination URL at any time without needing to reprint your QR
-              codes. Every scan is logged so you can track performance and make
-              smarter decisions.
+              Unlike traditional static QR codes, DynamicCodes allows you to
+              change the destination URL at any time without needing to reprint
+              your QR codes. Every scan is logged so you can track performance
+              and make smarter decisions.
             </p>
 
             {/* Features */}

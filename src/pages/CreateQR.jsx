@@ -3,11 +3,18 @@ import QRCodeStyling from "qr-code-styling";
 import VantaBackground from "../components/VantaBackground";
 import ColorPicker from "../components/ColorPicker";
 import { toPng } from "html-to-image";
+import { supabase } from "../lib/supabaseClient";
+import { useNavigate } from "react-router-dom";
 
 export default function CreateQR() {
   const qrRef = useRef(null);
   const qrCode = useRef(null);
   const frameRef = useRef(null);
+  const navigate = useNavigate();
+
+  // Saving QR
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
 
   const [activeTab, setActiveTab] = useState("basic");
 
@@ -97,6 +104,89 @@ export default function CreateQR() {
     qrRef.current.innerHTML = "";
     qrCode.current.append(qrRef.current);
   }, []);
+
+  // Saving QR Code
+  const saveQRCode = async () => {
+    setSaveMessage("");
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !authData?.user) {
+      setSaveMessage("You must be logged in to save QR codes.");
+      navigate("/login");
+      return;
+    }
+
+    const user = authData.user;
+
+    const designData = {
+      url,
+      size,
+      margin,
+      errorCorrection,
+
+      dotStyle,
+      dotColor,
+
+      bgColor,
+
+      cornerSquareStyle,
+      cornerSquareColor,
+      cornerDotStyle,
+      cornerDotColor,
+
+      useGradient,
+      gradientType,
+      gradientColor1,
+      gradientColor2,
+      gradientRotation,
+
+      frameEnabled,
+      frameStyle,
+      frameBg,
+      frameBorder,
+      framePadding,
+      frameBorderWidth,
+      frameText,
+      frameTextColor,
+      frameTextSize,
+
+      logo,
+      logoSize,
+      logoMargin,
+      hideBackgroundDots,
+    };
+
+    setSaving(true);
+
+    const { data, error } = await supabase
+      .from("qr_codes")
+      .insert([
+        {
+          user_id: user.id,
+          destination_url: url,
+          design: designData,
+        },
+      ])
+      .select("id, short_code")
+      .single();
+
+    if (data) {
+      console.log("Short Code:", data.short_code);
+      setSaveMessage(`Saved! Short Code: ${data.short_code}`);
+    }
+
+    setSaving(false);
+
+    if (error) {
+      console.error(error);
+      setSaveMessage("Failed to save QR Code.");
+      return;
+    }
+
+    setSaveMessage("QR Code saved successfully!");
+    console.log("Saved QR:", data);
+  };
 
   // Update QR Code
   useEffect(() => {
@@ -191,7 +281,7 @@ export default function CreateQR() {
   // Download QR
   const downloadQR = (format) => {
     if (!qrCode.current) return;
-    qrCode.current.download({ name: "dynamicqr", extension: format });
+    qrCode.current.download({ name: "DynamicCodes", extension: format });
   };
 
   const downloadFramedPNG = async () => {
@@ -205,7 +295,7 @@ export default function CreateQR() {
       });
 
       const link = document.createElement("a");
-      link.download = "dynamicqr-framed.png";
+      link.download = "DynamicCodes-framed.png";
       link.href = dataUrl;
       link.click();
     } catch (err) {
@@ -788,6 +878,20 @@ export default function CreateQR() {
           {/* Download Buttons OUTSIDE the grid */}
           <div className="mt-12 flex flex-col items-center gap-4">
             <div className="w-full max-w-4xl flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={saveQRCode}
+                disabled={saving}
+                className="btn-primary cursor-pointer w-full"
+              >
+                {saving ? "Saving..." : "Save QR Code"}
+              </button>
+
+              {saveMessage && (
+                <p className="text-sm text-[var(--cyan)] text-center mt-2">
+                  {saveMessage}
+                </p>
+              )}
+
               <button
                 onClick={downloadFramedPNG}
                 className="btn-primary cursor-pointer w-full"

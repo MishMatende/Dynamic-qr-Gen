@@ -1,36 +1,66 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { supabase } from "../lib/supabaseClient";
 
 export default function Header() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/login");
+  };
+
   return (
     <header className="flex items-center justify-between px-6 py-5 md:px-12">
-      <h1 className="text-xl font-bold tracking-wide text-[var(--cyan)]">
-        DynamicQR
-      </h1>
+      <Link
+        to="/"
+        className="text-xl font-bold tracking-wide text-[var(--cyan)]"
+      >
+        DynamicCodes
+      </Link>
 
       <nav className="hidden items-center gap-6 text-sm text-zinc-300 md:flex">
-        <a href="/" className="hover:text-white transition">
+        <Link to="/" className="hover:text-white transition">
           Home
-        </a>
-        <a href="/about" className="hover:text-white transition">
+        </Link>
+
+        <Link to="/about" className="hover:text-white transition">
           About
-        </a>
-        <a href="/features" className="hover:text-white transition">
+        </Link>
+
+        <Link to="/features" className="hover:text-white transition">
           Features
-        </a>
-        <a href="#how-it-works" className="hover:text-white transition">
+        </Link>
+
+        <a href="/how-it-works" className="hover:text-white transition">
           How it works
         </a>
       </nav>
 
       <div className="flex items-center gap-3">
-        <Link to="/login" className="btn-outline text-sm">
-          Login
-        </Link>
+        {!user ? (
+          <>
+            <Link to="/login" className="btn-outline text-sm">
+              Login
+            </Link>
 
-        <Link to="/dashboard" className="btn-primary text-sm">
-          Dashboard
-        </Link>
+            <Link to="/signup" className="btn-primary text-sm">
+              Sign Up
+            </Link>
+          </>
+        ) : (
+          <>
+            <Link to="/dashboard" className="btn-primary text-sm">
+              Dashboard
+            </Link>
+
+            <button onClick={handleLogout} className="btn-outline text-sm">
+              Logout
+            </button>
+          </>
+        )}
       </div>
     </header>
   );

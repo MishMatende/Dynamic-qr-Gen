@@ -6,9 +6,15 @@ export default function Footer() {
       id="about"
       className="mt-20 border-t border-zinc-800 pt-10 text-center text-sm text-zinc-500"
     >
-      <p>Built with ❤️ using React, TailwindCSS & Supabase.</p>
+      <p>
+        Built with ❤️ using{" "}
+        <span className="text-[var(--cyan)] font-semibold">
+          {" "}
+          React, TailwindCSS & Supabase.
+        </span>
+      </p>
       <p className="mt-2">
-        © {new Date().getFullYear()} DynamicQR. All rights reserved.
+        © {new Date().getFullYear()} DynamicCodes. All rights reserved.
       </p>
     </footer>
   );

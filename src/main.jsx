@@ -5,13 +5,14 @@ import App from "./App";
 import "./index.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import { AuthProvider } from "./context/AuthContext";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      <Header />
-      <App />
-      <Footer />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,
 );
