@@ -322,7 +322,7 @@ export default function CreateQR() {
 
   return (
     <VantaBackground overlayOpacity={0.84}>
-      <div className="px-6 py-12 md:px-12">
+      <div className="px-6 py-2 md:px-12">
         <div className="mx-auto max-w-7xl">
           {/* Title */}
           <div className="text-center mb-12 fade-in">
@@ -337,7 +337,7 @@ export default function CreateQR() {
 
           <div className="grid gap-8 lg:grid-cols-2">
             {/* Left Side Controls */}
-            <div className="card fade-in-delay">
+            <div className="card fade-in-delay relative z-10">
               <h2 className="text-xl font-bold mb-6">Customization Settings</h2>
 
               {/* Tabs */}
@@ -821,7 +821,7 @@ export default function CreateQR() {
             </div>
 
             {/* Preview */}
-            <div className="card flex flex-col items-center justify-center fade-in-delay">
+            <div className="card flex flex-col items-center justify-center fade-in-delay relative z-0">
               <h2 className="text-xl font-bold mb-6">Live Preview</h2>
 
               <div className="w-full flex items-center justify-center">

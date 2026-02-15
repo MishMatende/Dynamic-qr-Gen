@@ -176,5 +176,21 @@ input[type="number"]::-webkit-outer-spin-button {
 
 /* Remove number input arrows (Firefox) */
 input[type="number"] {
+  appearance: textfield;
   -moz-appearance: textfield;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease forwards;
 }

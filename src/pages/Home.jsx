@@ -7,7 +7,7 @@ export default function Home() {
     <VantaBackground overlayOpacity={0.7}>
       <div>
         {/* Hero */}
-        <main className="mx-auto max-w-6xl px-6 pt-14 pb-20 md:px-12">
+        <main className="mx-auto max-w-6xl px-6 pt-14 pb-5 md:px-12">
           <section className="text-center fade-in">
             <div className="inline-block cyan-glow">
               <h2 className="text-4xl font-extrabold leading-tight md:text-6xl">

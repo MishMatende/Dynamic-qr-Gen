@@ -4,7 +4,7 @@ import VantaBackground from "../components/VantaBackground";
 export default function Features() {
   return (
     <VantaBackground overlayOpacity={0.78}>
-      <div className="px-6 py-14 md:px-12">
+      <div className="px-6 py-2 md:px-12">
         <div className="mx-auto max-w-6xl">
           {/* Title */}
           <div className="text-center fade-in">
