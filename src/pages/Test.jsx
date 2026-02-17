@@ -1,1159 +1,658 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import QRCodeStyling from "qr-code-styling";
+import React, { useEffect, useMemo, useState } from "react";
 import VantaBackground from "../components/VantaBackground";
-import ColorPicker from "../components/ColorPicker";
-import { toPng } from "html-to-image";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
-import QRCode from "qrcode-generator";
 
-export default function CreateQR() {
-  const qrRef = useRef(null);
-  const qrCode = useRef(null);
-  const frameRef = useRef(null);
+import {
+  BarChart3,
+  QrCode,
+  MousePointerClick,
+  CalendarDays,
+  Copy,
+  Trash2,
+  Search,
+  Filter,
+} from "lucide-react";
+
+import {
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
+
+export default function Dashboard() {
   const navigate = useNavigate();
+  const [qrCodes, setQrCodes] = useState([]);
+  const [scans, setScans] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Saving QR
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("");
+  // Filters
+  const [search, setSearch] = useState("");
+  const [selectedCode, setSelectedCode] = useState("all");
+  const [dateFilter, setDateFilter] = useState("30");
 
-  const [activeTab, setActiveTab] = useState("basic");
+  const [stats, setStats] = useState({
+    totalCodes: 0,
+    totalScans: 0,
+    scansToday: 0,
+    mostScanned: null,
+  });
 
-  // Basic QR
-  const [url, setUrl] = useState("https://google.com");
-  const [size, setSize] = useState(320);
-  const [margin, setMargin] = useState(10);
+  // Helper: Display URL nicely
+  const getDisplayName = (url) => {
+    try {
+      const parsed = new URL(url);
+      return parsed.hostname.replace("www.", "");
+    } catch (err) {
+      return url;
+    }
+  };
 
-  // Error Correction
-  const [errorCorrection, setErrorCorrection] = useState("H");
-
-  // Dots style
-  const [dotStyle, setDotStyle] = useState("rounded");
-  const [dotColor, setDotColor] = useState("#000000");
-
-  // Background
-  const [bgColor, setBgColor] = useState("#ffffff");
-
-  // Corners
-  const [cornerSquareStyle, setCornerSquareStyle] = useState("extra-rounded");
-  const [cornerSquareColor, setCornerSquareColor] = useState("#000000");
-
-  const [cornerDotStyle, setCornerDotStyle] = useState("dot");
-  const [cornerDotColor, setCornerDotColor] = useState("#000000");
-
-  // Gradient
-  const [useGradient, setUseGradient] = useState(false);
-  const [gradientType, setGradientType] = useState("linear"); // linear or radial
-  const [gradientColor1, setGradientColor1] = useState("#22d3ee");
-  const [gradientColor2, setGradientColor2] = useState("#ffffff");
-  const [gradientRotation, setGradientRotation] = useState(0);
-
-  // Frames
-  const [frameEnabled, setFrameEnabled] = useState(false);
-  const [frameStyle, setFrameStyle] = useState("rounded");
-  const [frameBg, setFrameBg] = useState("#ffffff");
-  const [frameBorder, setFrameBorder] = useState("#22d3ee");
-  const [framePadding, setFramePadding] = useState(18);
-  const [frameBorderWidth, setFrameBorderWidth] = useState(3);
-
-  // Title (New)
-  const [qrTitle, setQrTitle] = useState("My QR Code");
-  const [qrTitleColor, setQrTitleColor] = useState("#000000");
-  const [qrTitleSize, setQrTitleSize] = useState(20);
-  const [qrTitleWeight, setQrTitleWeight] = useState("700");
-  const [qrTitleFont, setQrTitleFont] = useState("Poppins");
-
-  // Frame Text
-  const [frameText, setFrameText] = useState("Scan Me!");
-  const [frameTextColor, setFrameTextColor] = useState("#000000");
-  const [frameTextSize, setFrameTextSize] = useState(16);
-  const [frameTextWeight, setFrameTextWeight] = useState("600");
-  const [frameTextFont, setFrameTextFont] = useState("Poppins");
-
-  // Logo
-  const [logo, setLogo] = useState(null);
-  const [logoSize, setLogoSize] = useState(0.3);
-  const [logoMargin, setLogoMargin] = useState(6);
-  const [hideBackgroundDots, setHideBackgroundDots] = useState(true);
-
-  // Init QR Code ONCE
-  useLayoutEffect(() => {
-    if (!qrRef.current) return;
-
-    qrCode.current = new QRCodeStyling({
-      width: size,
-      height: size,
-      data: url,
-      margin: margin,
-      qrOptions: {
-        errorCorrectionLevel: errorCorrection,
-      },
-      backgroundOptions: {
-        color: bgColor,
-      },
-      dotsOptions: {
-        type: dotStyle,
-        color: dotColor,
-      },
-      cornersSquareOptions: {
-        type: cornerSquareStyle,
-        color: cornerSquareColor,
-      },
-      cornersDotOptions: {
-        type: "square",
-        color: cornerDotStyle === "diamond" ? "transparent" : cornerDotColor,
-      },
-      image: logo,
-      imageOptions: {
-        crossOrigin: "anonymous",
-        margin: logoMargin,
-        imageSize: logoSize,
-        hideBackgroundDots: hideBackgroundDots,
-      },
-    });
-
-    qrRef.current.innerHTML = "";
-    qrCode.current.append(qrRef.current);
+  useEffect(() => {
+    fetchDashboard();
   }, []);
 
-  // Saving QR Code
-  const saveQRCode = async () => {
-    setSaveMessage("");
+  const fetchDashboard = async () => {
+    setLoading(true);
 
-    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const { data: codes, error: codesError } = await supabase
+      .from("qr_codes")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-    if (authError || !authData?.user) {
-      setSaveMessage("You must be logged in to save QR codes.");
-      navigate("/login");
+    if (codesError) {
+      console.error("Error fetching qr_codes:", codesError);
+      setLoading(false);
       return;
     }
 
-    const user = authData.user;
+    const { data: scanRows, error: scansError } = await supabase
+      .from("qr_scans")
+      .select("*")
+      .order("scanned_at", { ascending: false });
 
-    const designData = {
-      url,
-      size,
-      margin,
-      errorCorrection,
-
-      dotStyle,
-      dotColor,
-      bgColor,
-
-      cornerSquareStyle,
-      cornerSquareColor,
-      cornerDotStyle,
-      cornerDotColor,
-
-      useGradient,
-      gradientType,
-      gradientColor1,
-      gradientColor2,
-      gradientRotation,
-
-      frameEnabled,
-      frameStyle,
-      frameBg,
-      frameBorder,
-      framePadding,
-      frameBorderWidth,
-
-      qrTitle,
-      qrTitleColor,
-      qrTitleSize,
-      qrTitleWeight,
-      qrTitleFont,
-
-      frameText,
-      frameTextColor,
-      frameTextSize,
-      frameTextWeight,
-      frameTextFont,
-
-      logo,
-      logoSize,
-      logoMargin,
-      hideBackgroundDots,
-    };
-
-    setSaving(true);
-
-    const { data, error } = await supabase
-      .from("qr_codes")
-      .insert([
-        {
-          user_id: user.id,
-          destination_url: url,
-          design: designData,
-        },
-      ])
-      .select("id, short_code")
-      .single();
-
-    if (data) {
-      console.log("Short Code:", data.short_code);
-      setSaveMessage(`Saved! Short Code: ${data.short_code}`);
+    if (scansError) {
+      console.error("Error fetching qr_scans:", scansError);
+      setLoading(false);
+      return;
     }
 
-    setSaving(false);
+    setQrCodes(codes);
+    setScans(scanRows);
+
+    calculateStats(codes, scanRows);
+
+    setLoading(false);
+  };
+
+  const calculateStats = (codes, scanRows) => {
+    const totalCodes = codes.length;
+    const totalScans = scanRows.length;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const scansToday = scanRows.filter((scan) =>
+      scan.scanned_at?.startsWith(today),
+    ).length;
+
+    const scanCountMap = {};
+    scanRows.forEach((scan) => {
+      scanCountMap[scan.qr_code_id] = (scanCountMap[scan.qr_code_id] || 0) + 1;
+    });
+
+    let mostScanned = null;
+    let maxScans = 0;
+
+    for (const code of codes) {
+      const count = scanCountMap[code.id] || 0;
+      if (count > maxScans) {
+        maxScans = count;
+        mostScanned = { ...code, scans: count };
+      }
+    }
+
+    setStats({
+      totalCodes,
+      totalScans,
+      scansToday,
+      mostScanned,
+    });
+  };
+
+  const getRedirectLink = (shortCode) => {
+    return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/qr-redirect/${shortCode}`;
+  };
+
+  const copyLink = async (shortCode) => {
+    const link = getRedirectLink(shortCode);
+    await navigator.clipboard.writeText(link);
+    alert("Redirect link copied!");
+  };
+
+  const deleteQRCode = async (id) => {
+    const confirmDelete = confirm(
+      "Are you sure you want to delete this QR code? This cannot be undone.",
+    );
+
+    if (!confirmDelete) return;
+
+    const { error } = await supabase.from("qr_codes").delete().eq("id", id);
 
     if (error) {
-      console.error(error);
-      setSaveMessage("Failed to save QR Code.");
+      alert("Failed to delete QR Code: " + error.message);
       return;
     }
 
-    setSaveMessage("QR Code saved successfully!");
-    console.log("Saved QR:", data);
+    fetchDashboard();
   };
 
-  // Update QR Code
-  useEffect(() => {
-    if (!qrCode.current) return;
+  // Filter scans by selected QR code + date range
+  const filteredScans = useMemo(() => {
+    let result = [...scans];
 
-    const dotsOptions = {
-      type: dotStyle,
-    };
-
-    if (useGradient) {
-      dotsOptions.gradient = {
-        type: gradientType,
-        rotation: (gradientRotation * Math.PI) / 180,
-        colorStops: [
-          { offset: 0, color: gradientColor1 },
-          { offset: 1, color: gradientColor2 },
-        ],
-      };
-      dotsOptions.color = undefined;
-    } else {
-      dotsOptions.color = dotColor;
-      dotsOptions.gradient = undefined;
+    if (selectedCode !== "all") {
+      result = result.filter((scan) => scan.qr_code_id === selectedCode);
     }
 
-    qrCode.current.update({
-      width: size,
-      height: size,
-      data: url,
-      margin: margin,
-      qrOptions: {
-        errorCorrectionLevel: errorCorrection,
-      },
-      backgroundOptions: {
-        color: bgColor,
-      },
-      dotsOptions,
-      cornersSquareOptions: {
-        type: cornerSquareStyle,
-        color: cornerSquareColor,
-      },
-      cornersDotOptions: {
-        type: "square",
-        color: cornerDotStyle === "diamond" ? "transparent" : cornerDotColor,
-      },
-      image: logo,
-      imageOptions: {
-        crossOrigin: "anonymous",
-        margin: logoMargin,
-        imageSize: logoSize,
-        hideBackgroundDots: hideBackgroundDots,
-      },
-    });
-  }, [
-    url,
-    size,
-    margin,
-    errorCorrection,
-    dotStyle,
-    dotColor,
-    bgColor,
-    cornerSquareStyle,
-    cornerSquareColor,
-    cornerDotStyle,
-    cornerDotColor,
-    logo,
-    logoSize,
-    logoMargin,
-    hideBackgroundDots,
-    useGradient,
-    gradientType,
-    gradientColor1,
-    gradientColor2,
-    gradientRotation,
-  ]);
+    if (dateFilter !== "all") {
+      const days = Number(dateFilter);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
 
-  // Upload Logo
-  const handleLogoUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+      result = result.filter((scan) => new Date(scan.scanned_at) >= cutoff);
+    }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setLogo(event.target.result);
-    };
-    reader.readAsDataURL(file);
-  };
+    return result;
+  }, [scans, selectedCode, dateFilter]);
 
-  // Download QR
-  const downloadQR = (format) => {
-    if (!qrCode.current) return;
-    qrCode.current.download({ name: "DynamicCodes", extension: format });
-  };
+  // Filter QR codes by search
+  const filteredQrCodes = useMemo(() => {
+    let result = [...qrCodes];
 
-  const downloadFramedPNG = async () => {
-    if (!frameRef.current) return;
-
-    try {
-      const dataUrl = await toPng(frameRef.current, {
-        cacheBust: true,
-        pixelRatio: 3,
-        backgroundColor: frameEnabled ? frameBg : "#000000",
+    if (search.trim() !== "") {
+      result = result.filter((code) => {
+        const searchText = search.toLowerCase();
+        return (
+          code.destination_url.toLowerCase().includes(searchText) ||
+          getDisplayName(code.destination_url)
+            .toLowerCase()
+            .includes(searchText)
+        );
       });
-
-      const link = document.createElement("a");
-      link.download = "DynamicCodes-framed.png";
-      link.href = dataUrl;
-      link.click();
-    } catch (err) {
-      console.error("Failed to download framed PNG:", err);
     }
-  };
 
-  const clearLogo = () => setLogo(null);
+    return result;
+  }, [qrCodes, search]);
 
-  const TabButton = ({ id, label }) => (
-    <button
-      onClick={() => setActiveTab(id)}
-      className={`px-4 py-2 rounded-xl text-sm font-semibold transition border cursor-pointer
-        ${
-          activeTab === id
-            ? "bg-[var(--cyan)] text-black border-[var(--cyan)]"
-            : "bg-black text-white border-zinc-800 hover:border-[var(--cyan)]"
-        }
-      `}
-    >
-      {label}
-    </button>
-  );
+  // Enrich QR codes with scan counts + last scan
+  const enrichedCodes = useMemo(() => {
+    const scanCountMap = {};
+    const lastScanMap = {};
 
-  const DiamondCornerDots = ({ size, margin, color, url, errorCorrection }) => {
-    const moduleCount = getQRModuleCount(url, errorCorrection);
-    const moduleSize = (size - margin * 2) / moduleCount;
+    scans.forEach((scan) => {
+      scanCountMap[scan.qr_code_id] = (scanCountMap[scan.qr_code_id] || 0) + 1;
 
-    const topLeftX = margin;
-    const topLeftY = margin;
+      if (!lastScanMap[scan.qr_code_id]) {
+        lastScanMap[scan.qr_code_id] = scan.scanned_at;
+      }
+    });
 
-    const topRightX = margin + moduleSize * (moduleCount - 8);
-    const topRightY = margin;
+    return filteredQrCodes.map((code) => ({
+      ...code,
+      scans: scanCountMap[code.id] || 0,
+      lastScan: lastScanMap[code.id] || null,
+    }));
+  }, [filteredQrCodes, scans]);
 
-    const bottomLeftX = margin;
-    const bottomLeftY = margin + moduleSize * (moduleCount - 8);
+  // --- Analytics Data Processing ---
 
-    const baseShift = moduleSize * 3.5;
-    const correction = moduleSize * 0.35;
+  const scansPerDay = useMemo(() => {
+    const map = {};
 
-    const tlShiftX = baseShift + correction;
-    const tlShiftY = baseShift + correction;
+    filteredScans.forEach((scan) => {
+      const date = new Date(scan.scanned_at).toISOString().slice(0, 10);
+      map[date] = (map[date] || 0) + 1;
+    });
 
-    const trShiftX = baseShift + correction + moduleSize * 0.22;
-    const trShiftY = baseShift + correction;
+    return Object.keys(map)
+      .sort()
+      .map((date) => ({
+        date,
+        scans: map[date],
+      }));
+  }, [filteredScans]);
 
-    const blShiftX = baseShift + correction;
-    const blShiftY = baseShift + correction + moduleSize * 0.18;
+  const deviceBreakdown = useMemo(() => {
+    const map = {};
 
-    const diamondSize = moduleSize * 1.8;
+    filteredScans.forEach((scan) => {
+      const device = scan.device_type || "Unknown";
+      map[device] = (map[device] || 0) + 1;
+    });
 
-    const style = {
-      width: `${diamondSize}px`,
-      height: `${diamondSize}px`,
-      backgroundColor: color,
-      position: "absolute",
-      transform: "translate(-50%, -50%) rotate(45deg)",
-      borderRadius: "2px",
-      zIndex: 999,
-      pointerEvents: "none",
-    };
+    return Object.keys(map).map((key) => ({
+      name: key,
+      value: map[key],
+    }));
+  }, [filteredScans]);
 
-    return (
-      <>
-        <div
-          style={{
-            ...style,
-            left: topLeftX + tlShiftX,
-            top: topLeftY + tlShiftY,
-          }}
-        />
+  const browserBreakdown = useMemo(() => {
+    const map = {};
 
-        <div
-          style={{
-            ...style,
-            left: topRightX + trShiftX,
-            top: topRightY + trShiftY,
-          }}
-        />
+    filteredScans.forEach((scan) => {
+      const browser = scan.browser || "Unknown";
+      map[browser] = (map[browser] || 0) + 1;
+    });
 
-        <div
-          style={{
-            ...style,
-            left: bottomLeftX + blShiftX,
-            top: bottomLeftY + blShiftY,
-          }}
-        />
-      </>
-    );
-  };
+    return Object.keys(map).map((key) => ({
+      name: key,
+      scans: map[key],
+    }));
+  }, [filteredScans]);
 
-  const getQRModuleCount = (data, errorCorrection) => {
-    const qr = QRCode(0, errorCorrection);
-    qr.addData(data);
-    qr.make();
-    return qr.getModuleCount();
-  };
+  const osBreakdown = useMemo(() => {
+    const map = {};
+
+    filteredScans.forEach((scan) => {
+      const os = scan.os || "Unknown";
+      map[os] = (map[os] || 0) + 1;
+    });
+
+    return Object.keys(map).map((key) => ({
+      name: key,
+      scans: map[key],
+    }));
+  }, [filteredScans]);
 
   return (
-    <VantaBackground overlayOpacity={0.84}>
-      <div className="px-6 py-2 md:px-12">
-        <div className="mx-auto max-w-7xl">
-          {/* Title */}
-          <div className="text-center mb-12 fade-in">
-            <h1 className="text-4xl md:text-5xl font-extrabold">
-              Create <span className="text-[var(--cyan)]">QR Code</span>
+    <VantaBackground overlayOpacity={0.9}>
+      <div className="min-h-screen px-4 py-8 sm:px-6 sm:py-10 md:px-12 text-white">
+        <div className="mx-auto max-w-7xl w-full">
+          {/* Header */}
+          <div className="mb-10 fade-in text-center sm:text-left">
+            <h1 className="text-3xl sm:text-4xl font-extrabold">
+              Dashboard <span className="text-[var(--cyan)]">Analytics</span>
             </h1>
-            <p className="mt-4 text-muted max-w-2xl mx-auto leading-relaxed">
-              Customize your QR design, upload a logo, apply gradients, and
-              download in PNG or SVG format.
+            <p className="text-muted mt-2 max-w-2xl sm:mx-0 mx-auto">
+              View scan analytics, manage your QR codes, and track performance.
             </p>
           </div>
 
-          <div className="grid gap-8 lg:grid-cols-2">
-            {/* Left Side Controls */}
-            <div className="card fade-in-delay relative z-10">
-              <h2 className="text-xl font-bold mb-6">Customization Settings</h2>
+          {/* Stats Cards */}
+          <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-10 fade-in-delay">
+            <StatCard
+              title="Total QR Codes"
+              value={stats.totalCodes}
+              icon={<QrCode className="w-6 h-6 text-[var(--cyan)]" />}
+            />
 
-              {/* Tabs */}
-              <div className="flex flex-wrap gap-3 mb-8">
-                <TabButton id="basic" label="Basic" />
-                <TabButton id="frame" label="Frame" />
-                <TabButton id="design" label="Design" />
-                <TabButton id="gradient" label="Gradient" />
-                <TabButton id="logo" label="Logo" />
+            <StatCard
+              title="Total Scans"
+              value={stats.totalScans}
+              icon={
+                <MousePointerClick className="w-6 h-6 text-[var(--cyan)]" />
+              }
+            />
+
+            <StatCard
+              title="Scans Today"
+              value={stats.scansToday}
+              icon={<CalendarDays className="w-6 h-6 text-[var(--cyan)]" />}
+            />
+
+            <StatCard
+              title="Most Scanned"
+              value={
+                stats.mostScanned
+                  ? getDisplayName(stats.mostScanned.destination_url)
+                  : "—"
+              }
+              icon={<BarChart3 className="w-6 h-6 text-[var(--cyan)]" />}
+              subtitle={
+                stats.mostScanned
+                  ? `${stats.mostScanned.scans} scans`
+                  : "No scans yet"
+              }
+            />
+          </div>
+
+          {/* Filters */}
+          <div className="card p-5 sm:p-6 mb-10 fade-in-delay">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              {/* Search */}
+              <div className="flex items-center gap-3 w-full lg:max-w-md border border-zinc-800 rounded-xl px-4 py-3 bg-black">
+                <Search className="w-4 h-4 text-zinc-500" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search destination..."
+                  className="bg-transparent outline-none w-full text-sm"
+                />
               </div>
 
-              {/* BASIC TAB */}
-              {activeTab === "basic" && (
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">
-                      Destination URL
-                    </label>
-                    <input
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                      placeholder="https://example.com"
-                    />
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        QR Size (px)
-                      </label>
-                      <input
-                        type="number"
-                        value={size}
-                        onChange={(e) => setSize(Number(e.target.value))}
-                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Margin / Padding
-                      </label>
-                      <input
-                        type="number"
-                        value={margin}
-                        onChange={(e) => setMargin(Number(e.target.value))}
-                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Error Correction */}
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">
-                      Error Correction Level
-                    </label>
-
-                    <select
-                      value={errorCorrection}
-                      onChange={(e) => setErrorCorrection(e.target.value)}
-                      className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                    >
-                      <option value="L">L (Low)</option>
-                      <option value="M">M (Medium)</option>
-                      <option value="Q">Q (Quartile)</option>
-                      <option value="H">H (High)</option>
-                    </select>
-
-                    <p className="text-xs text-muted mt-2 leading-relaxed">
-                      <span className="text-white font-semibold">
-                        Error Correction Level
-                      </span>{" "}
-                      controls how much of the QR code can be damaged and still
-                      scan correctly.
-                      <br />
-                      <span className="text-white font-semibold">L</span> = 7%
-                      recovery,
-                      <span className="text-white font-semibold"> M</span> =
-                      15%,
-                      <span className="text-white font-semibold"> Q</span> =
-                      25%,
-                      <span className="text-white font-semibold"> H</span> =
-                      30%.
-                      <br />
-                      Recommended:{" "}
-                      <span className="text-[var(--cyan)] font-semibold">
-                        H
-                      </span>{" "}
-                      if you use a logo.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* FRAME TAB */}
-              {activeTab === "frame" && (
-                <div className="space-y-6">
-                  {/* Enable Frame */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold">Enable Frame</p>
-                      <p className="text-xs text-muted">
-                        Adds a border and label around the QR code.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setFrameEnabled(!frameEnabled)}
-                      className={`relative w-12 h-7 rounded-full transition duration-300 cursor-pointer border ${
-                        frameEnabled
-                          ? "bg-[var(--cyan)] border-[var(--cyan)]"
-                          : "bg-zinc-900 border-zinc-700"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-black transition duration-300 ${
-                          frameEnabled ? "translate-x-5" : ""
-                        }`}
-                      ></span>
-                    </button>
-                  </div>
-
-                  {/* Frame Style */}
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">
-                      Frame Style
-                    </label>
-                    <select
-                      value={frameStyle}
-                      onChange={(e) => setFrameStyle(e.target.value)}
-                      className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                    >
-                      <option value="rounded">Rounded</option>
-                      <option value="square">Square</option>
-                      <option value="pill">Pill</option>
-                    </select>
-                  </div>
-
-                  {/* Title */}
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">
-                      QR Title
-                    </label>
-                    <input
-                      value={qrTitle}
-                      onChange={(e) => setQrTitle(e.target.value)}
-                      className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                      placeholder="My QR Code"
-                    />
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <ColorPicker
-                      label="Title Color"
-                      color={qrTitleColor}
-                      setColor={setQrTitleColor}
-                    />
-
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Title Size ({qrTitleSize}px)
-                      </label>
-                      <input
-                        type="range"
-                        min="12"
-                        max="40"
-                        value={qrTitleSize}
-                        onChange={(e) => setQrTitleSize(Number(e.target.value))}
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Title Weight
-                      </label>
-                      <select
-                        value={qrTitleWeight}
-                        onChange={(e) => setQrTitleWeight(e.target.value)}
-                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                      >
-                        <option value="400">Regular</option>
-                        <option value="500">Medium</option>
-                        <option value="600">Semi Bold</option>
-                        <option value="700">Bold</option>
-                        <option value="800">Extra Bold</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Title Font
-                      </label>
-                      <select
-                        value={qrTitleFont}
-                        onChange={(e) => setQrTitleFont(e.target.value)}
-                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                      >
-                        <option value="Poppins">Poppins</option>
-                        <option value="Inter">Inter</option>
-                        <option value="Montserrat">Montserrat</option>
-                        <option value="Roboto">Roboto</option>
-                        <option value="Arial">Arial</option>
-                        <option value="Georgia">Georgia</option>
-                        <option value="Courier New">Courier New</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Colors */}
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <ColorPicker
-                      label="Frame Background"
-                      color={frameBg}
-                      setColor={setFrameBg}
-                    />
-                    <ColorPicker
-                      label="Frame Border"
-                      color={frameBorder}
-                      setColor={setFrameBorder}
-                    />
-                  </div>
-
-                  {/* Border & Padding */}
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Border Width ({frameBorderWidth}px)
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="12"
-                        value={frameBorderWidth}
-                        onChange={(e) =>
-                          setFrameBorderWidth(Number(e.target.value))
-                        }
-                        className="w-full"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Padding ({framePadding}px)
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="50"
-                        value={framePadding}
-                        onChange={(e) =>
-                          setFramePadding(Number(e.target.value))
-                        }
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Frame Text */}
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">
-                      Frame Text
-                    </label>
-                    <input
-                      value={frameText}
-                      onChange={(e) => setFrameText(e.target.value)}
-                      className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                      placeholder="Scan Me!"
-                    />
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <ColorPicker
-                      label="Text Color"
-                      color={frameTextColor}
-                      setColor={setFrameTextColor}
-                    />
-
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Text Size ({frameTextSize}px)
-                      </label>
-                      <input
-                        type="range"
-                        min="10"
-                        max="28"
-                        value={frameTextSize}
-                        onChange={(e) =>
-                          setFrameTextSize(Number(e.target.value))
-                        }
-                        className="w-full"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Text Weight
-                      </label>
-                      <select
-                        value={frameTextWeight}
-                        onChange={(e) => setFrameTextWeight(e.target.value)}
-                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                      >
-                        <option value="400">Regular</option>
-                        <option value="500">Medium</option>
-                        <option value="600">Semi Bold</option>
-                        <option value="700">Bold</option>
-                        <option value="800">Extra Bold</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Frame Text Font
-                      </label>
-                      <select
-                        value={frameTextFont}
-                        onChange={(e) => setFrameTextFont(e.target.value)}
-                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                      >
-                        <option value="Poppins">Poppins</option>
-                        <option value="Inter">Inter</option>
-                        <option value="Montserrat">Montserrat</option>
-                        <option value="Roboto">Roboto</option>
-                        <option value="Arial">Arial</option>
-                        <option value="Georgia">Georgia</option>
-                        <option value="Courier New">Courier New</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* DESIGN TAB */}
-              {activeTab === "design" && (
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">
-                      Dot Style
-                    </label>
-                    <select
-                      value={dotStyle}
-                      onChange={(e) => setDotStyle(e.target.value)}
-                      className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                    >
-                      <option value="square">Square</option>
-                      <option value="dots">Dots</option>
-                      <option value="rounded">Rounded</option>
-                      <option value="classy">Classy</option>
-                      <option value="classy-rounded">Classy Rounded</option>
-                      <option value="extra-rounded">Extra Rounded</option>
-                    </select>
-                  </div>
-
-                  <ColorPicker
-                    label="Dot Color"
-                    color={dotColor}
-                    setColor={setDotColor}
-                  />
-
-                  <ColorPicker
-                    label="Background Color"
-                    color={bgColor}
-                    setColor={setBgColor}
-                  />
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Corner Square Style
-                      </label>
-                      <select
-                        value={cornerSquareStyle}
-                        onChange={(e) => setCornerSquareStyle(e.target.value)}
-                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                      >
-                        <option value="square">Square</option>
-                        <option value="dot">Dot</option>
-                        <option value="extra-rounded">Extra Rounded</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">
-                        Corner Dot Style
-                      </label>
-                      <select
-                        value={cornerDotStyle}
-                        onChange={(e) => setCornerDotStyle(e.target.value)}
-                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                      >
-                        <option value="square">Square</option>
-                        <option value="dot">Dot</option>
-                        <option value="diamond">Diamond</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <ColorPicker
-                      label="Corner Square Color"
-                      color={cornerSquareColor}
-                      setColor={setCornerSquareColor}
-                    />
-
-                    <ColorPicker
-                      label="Corner Dot Color"
-                      color={cornerDotColor}
-                      setColor={setCornerDotColor}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* GRADIENT TAB */}
-              {activeTab === "gradient" && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold">Enable Gradient</p>
-                      <p className="text-xs text-muted">
-                        Apply gradient color to the QR dots.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setUseGradient(!useGradient)}
-                      className={`relative w-12 h-7 rounded-full transition cursor-pointer duration-300 border ${
-                        useGradient
-                          ? "bg-[var(--cyan)] border-[var(--cyan)]"
-                          : "bg-zinc-900 border-zinc-700"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-black shadow-[0_0_12px_rgba(34,211,238,0.4)]
- transition duration-300 ${useGradient ? "translate-x-5" : ""}`}
-                      ></span>
-                    </button>
-                  </div>
-
-                  {useGradient ? (
-                    <>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <ColorPicker
-                          label="Gradient Color 1"
-                          color={gradientColor1}
-                          setColor={setGradientColor1}
-                        />
-
-                        <ColorPicker
-                          label="Gradient Color 2"
-                          color={gradientColor2}
-                          setColor={setGradientColor2}
-                        />
-                      </div>
-
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div>
-                          <label className="block text-sm font-semibold mb-2">
-                            Gradient Type
-                          </label>
-                          <select
-                            value={gradientType}
-                            onChange={(e) => setGradientType(e.target.value)}
-                            className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
-                          >
-                            <option value="linear">Linear</option>
-                            <option value="radial">Radial</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-semibold mb-2">
-                            Rotation ({gradientRotation}°)
-                          </label>
-                          <input
-                            type="range"
-                            min="0"
-                            max="360"
-                            value={gradientRotation}
-                            onChange={(e) =>
-                              setGradientRotation(Number(e.target.value))
-                            }
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-sm text-muted leading-relaxed">
-                      Gradient is currently disabled. Turn it on to customize
-                      gradient colors and rotation.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* LOGO TAB */}
-              {activeTab === "logo" && (
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">
-                      Upload Logo (Optional)
-                    </label>
-
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                      className="block w-full text-sm text-zinc-300 file:mr-4 file:rounded-xl file:border-0 file:bg-[var(--cyan)] file:px-4 file:py-2 file:text-black file:font-semibold hover:file:bg-[var(--cyan-soft)]"
-                    />
-                  </div>
-
-                  {logo ? (
-                    <>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div>
-                          <label className="block text-sm font-semibold mb-2">
-                            Logo Size ({Math.round(logoSize * 100)}%)
-                          </label>
-                          <input
-                            type="range"
-                            min="0.1"
-                            max="0.5"
-                            step="0.05"
-                            value={logoSize}
-                            onChange={(e) =>
-                              setLogoSize(Number(e.target.value))
-                            }
-                            className="w-full"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-semibold mb-2">
-                            Logo Margin ({logoMargin}px)
-                          </label>
-                          <input
-                            type="range"
-                            min="0"
-                            max="20"
-                            step="1"
-                            value={logoMargin}
-                            onChange={(e) =>
-                              setLogoMargin(Number(e.target.value))
-                            }
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-semibold">
-                            Hide Background Dots Behind Logo
-                          </p>
-                          <p className="text-xs text-muted">
-                            Recommended for cleaner logo display.
-                          </p>
-                        </div>
-
-                        <input
-                          type="checkbox"
-                          checked={hideBackgroundDots}
-                          onChange={(e) =>
-                            setHideBackgroundDots(e.target.checked)
-                          }
-                          className="w-5 h-5 accent-cyan-400"
-                        />
-                      </div>
-
-                      <button
-                        onClick={clearLogo}
-                        className="btn-outline cursor-pointer w-full"
-                      >
-                        Remove Logo
-                      </button>
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted">
-                      No logo uploaded yet. Upload one to unlock logo settings.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Preview */}
-            <div className="card flex flex-col items-center justify-center fade-in-delay relative z-0">
-              <h2 className="text-xl font-bold mb-6">Live Preview</h2>
-
-              <div className="w-full flex items-center justify-center">
-                <div
-                  ref={frameRef}
-                  className="flex flex-col items-center justify-center"
-                  style={{
-                    backgroundColor: frameEnabled ? frameBg : "transparent",
-                    border: frameEnabled
-                      ? `${frameBorderWidth}px solid ${frameBorder}`
-                      : "none",
-                    padding: frameEnabled ? `${framePadding}px` : "0px",
-                    borderRadius:
-                      frameEnabled && frameStyle === "rounded"
-                        ? "22px"
-                        : frameEnabled && frameStyle === "square"
-                          ? "10px"
-                          : frameEnabled && frameStyle === "pill"
-                            ? "50px"
-                            : "22px",
-                    boxShadow: frameEnabled
-                      ? "0 0 25px rgba(34,211,238,0.12)"
-                      : "none",
-                    transition: "0.25s ease",
-                  }}
-                >
-                  {/* QR Title */}
-                  {qrTitle.trim() !== "" && (
-                    <p
-                      className="mb-4 text-center tracking-wide"
-                      style={{
-                        color: qrTitleColor,
-                        fontSize: `${qrTitleSize}px`,
-                        fontWeight: qrTitleWeight,
-                        fontFamily: qrTitleFont,
-                      }}
-                    >
-                      {qrTitle}
-                    </p>
-                  )}
-
-                  <div
-                    className="relative"
-                    style={{
-                      width: `${size}px`,
-                      height: `${size}px`,
-                    }}
+              {/* Filters */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-zinc-500" />
+                  <select
+                    value={selectedCode}
+                    onChange={(e) => setSelectedCode(e.target.value)}
+                    className="w-full sm:w-auto rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
                   >
-                    <div
-                      ref={qrRef}
-                      className="rounded-2xl flex items-center justify-center w-full h-full"
-                    ></div>
+                    <option value="all">All QR Codes</option>
 
-                    {cornerDotStyle === "diamond" && (
-                      <DiamondCornerDots
-                        size={size}
-                        margin={margin}
-                        color={cornerDotColor}
-                        url={url}
-                        errorCorrection={errorCorrection}
-                      />
-                    )}
-                  </div>
-
-                  {/* Frame Text */}
-                  {frameEnabled && frameText.trim() !== "" && (
-                    <p
-                      className="mt-4 tracking-wide text-center"
-                      style={{
-                        color: frameTextColor,
-                        fontSize: `${frameTextSize}px`,
-                        fontWeight: frameTextWeight,
-                        fontFamily: frameTextFont,
-                      }}
-                    >
-                      {frameText}
-                    </p>
-                  )}
+                    {qrCodes.map((code) => (
+                      <option key={code.id} value={code.id}>
+                        {getDisplayName(code.destination_url)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
 
-              <p className="mt-6 text-muted text-sm text-center max-w-sm">
-                This QR code updates instantly. Use{" "}
-                <span className="text-[var(--cyan)] font-semibold">High</span>{" "}
-                error correction when adding logos.
-              </p>
+                <select
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="w-full sm:w-auto rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
+                >
+                  <option value="7">Last 7 Days</option>
+                  <option value="30">Last 30 Days</option>
+                  <option value="all">All Time</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          {/* Download Buttons OUTSIDE the grid */}
-          <div className="mt-12 flex flex-col items-center gap-4">
-            <div className="w-full max-w-4xl flex flex-col sm:flex-row gap-4">
-              <button
-                onClick={saveQRCode}
-                disabled={saving}
-                className="btn-primary cursor-pointer w-full"
-              >
-                {saving ? "Saving..." : "Save QR Code"}
-              </button>
+          {/* Analytics Charts */}
+          <div className="grid gap-6 lg:gap-8 lg:grid-cols-2 mb-10">
+            {/* Scans Per Day */}
+            <div className="card p-5 sm:p-6">
+              <h2 className="text-lg font-bold mb-4">Scans Per Day</h2>
 
-              {saveMessage && (
-                <p className="text-sm text-[var(--cyan)] text-center mt-2">
-                  {saveMessage}
-                </p>
+              {loading ? (
+                <p className="text-muted">Loading chart...</p>
+              ) : scansPerDay.length === 0 ? (
+                <p className="text-muted">No scans data available.</p>
+              ) : (
+                <div className="w-full h-[240px] sm:h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={scansPerDay}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+                      <XAxis dataKey="date" stroke="#999" />
+                      <YAxis stroke="#999" />
+                      <Tooltip />
+                      <Line
+                        type="monotone"
+                        dataKey="scans"
+                        stroke="#22d3ee"
+                        strokeWidth={3}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               )}
-
-              <button
-                onClick={downloadFramedPNG}
-                className="btn-primary cursor-pointer w-full"
-              >
-                Download PNG
-              </button>
-
-              <button
-                onClick={() => downloadQR("svg")}
-                className="btn-outline cursor-pointer w-full"
-              >
-                Download SVG
-              </button>
             </div>
 
-            <p className="text-xs text-muted text-center max-w-xl">
-              Tip: Use{" "}
-              <span className="text-[var(--cyan)] font-semibold">SVG</span> for
-              printing and{" "}
-              <span className="text-[var(--cyan)] font-semibold">PNG</span> for
-              web use.
-            </p>
+            {/* Device Breakdown */}
+            <div className="card p-5 sm:p-6">
+              <h2 className="text-lg font-bold mb-4">Device Breakdown</h2>
+
+              {loading ? (
+                <p className="text-muted">Loading chart...</p>
+              ) : deviceBreakdown.length === 0 ? (
+                <p className="text-muted">No scans data available.</p>
+              ) : (
+                <div className="w-full h-[240px] sm:h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={deviceBreakdown}
+                        dataKey="value"
+                        nameKey="name"
+                        outerRadius={90}
+                        label
+                      >
+                        {deviceBreakdown.map((_, index) => (
+                          <Cell
+                            key={index}
+                            fill="#22d3ee"
+                            opacity={0.3 + index * 0.15}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Browser + OS */}
+          <div className="grid gap-6 lg:gap-8 lg:grid-cols-2 mb-10">
+            {/* Browser */}
+            <div className="card p-5 sm:p-6">
+              <h2 className="text-lg font-bold mb-4">Browser Breakdown</h2>
+
+              {browserBreakdown.length === 0 ? (
+                <p className="text-muted">No browser data available.</p>
+              ) : (
+                <div className="w-full h-[240px] sm:h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={browserBreakdown}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+                      <XAxis dataKey="name" stroke="#999" />
+                      <YAxis stroke="#999" />
+                      <Tooltip />
+                      <Bar
+                        dataKey="scans"
+                        fill="#22d3ee"
+                        radius={[10, 10, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+
+            {/* OS */}
+            <div className="card p-5 sm:p-6">
+              <h2 className="text-lg font-bold mb-4">OS Breakdown</h2>
+
+              {osBreakdown.length === 0 ? (
+                <p className="text-muted">No OS data available.</p>
+              ) : (
+                <div className="w-full h-[240px] sm:h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={osBreakdown}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#222" />
+                      <XAxis dataKey="name" stroke="#999" />
+                      <YAxis stroke="#999" />
+                      <Tooltip />
+                      <Bar
+                        dataKey="scans"
+                        fill="#22d3ee"
+                        radius={[10, 10, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* QR Codes Section */}
+          <div className="card p-5 sm:p-8">
+            <h2 className="text-xl font-bold mb-6">Your QR Codes</h2>
+
+            {loading ? (
+              <p className="text-muted">Loading QR codes...</p>
+            ) : enrichedCodes.length === 0 ? (
+              <p className="text-muted">
+                No QR codes found. Create one to begin tracking scans.
+              </p>
+            ) : (
+              <>
+                {/* MOBILE VIEW (Cards) */}
+                <div className="grid gap-4 sm:hidden">
+                  {enrichedCodes.map((code) => (
+                    <div
+                      key={code.id}
+                      className="p-5 rounded-2xl border border-zinc-800 bg-black/40"
+                    >
+                      <button
+                        onClick={() => navigate(`/create/${code.id}`)}
+                        className="text-[var(--cyan)] font-bold text-base hover:underline text-left w-full"
+                        title={code.destination_url}
+                      >
+                        {getDisplayName(code.destination_url)}
+                      </button>
+
+                      <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted">Scans</p>
+                          <p className="font-bold text-[var(--cyan)]">
+                            {code.scans}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-muted">Created</p>
+                          <p className="text-white">
+                            {new Date(code.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+
+                        <div className="col-span-2">
+                          <p className="text-muted">Last Scan</p>
+                          <p className="text-white">
+                            {code.lastScan
+                              ? new Date(code.lastScan).toLocaleString()
+                              : "—"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 flex flex-col gap-3">
+                        <button
+                          onClick={() => copyLink(code.short_code)}
+                          className="w-full inline-flex justify-center items-center gap-2 px-4 py-3 rounded-xl border border-zinc-700 hover:border-[var(--cyan)] transition"
+                        >
+                          <Copy className="w-4 h-4" />
+                          Copy Link
+                        </button>
+
+                        <button
+                          onClick={() => deleteQRCode(code.id)}
+                          className="w-full inline-flex justify-center items-center gap-2 px-4 py-3 rounded-xl border border-red-500/40 text-red-400 hover:border-red-500 hover:bg-red-500/10 transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* DESKTOP VIEW (Table) */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-zinc-400 border-b border-zinc-800">
+                        <th className="py-3">Destination</th>
+                        <th className="py-3">Scans</th>
+                        <th className="py-3">Last Scan</th>
+                        <th className="py-3">Created</th>
+                        <th className="py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {enrichedCodes.map((code) => (
+                        <tr
+                          key={code.id}
+                          className="border-b border-zinc-900 hover:bg-white/5 transition"
+                        >
+                          <td className="py-4 max-w-[280px] truncate">
+                            <button
+                              onClick={() => navigate(`/create/${code.id}`)}
+                              className="text-[var(--cyan)] hover:underline cursor-pointer text-left"
+                              title={code.destination_url}
+                            >
+                              {getDisplayName(code.destination_url)}
+                            </button>
+                          </td>
+
+                          <td className="py-4 text-[var(--cyan)] font-bold">
+                            {code.scans}
+                          </td>
+
+                          <td className="py-4 text-muted">
+                            {code.lastScan
+                              ? new Date(code.lastScan).toLocaleString()
+                              : "—"}
+                          </td>
+
+                          <td className="py-4 text-muted">
+                            {new Date(code.created_at).toLocaleDateString()}
+                          </td>
+
+                          <td className="py-4 text-right">
+                            <div className="flex justify-end gap-3">
+                              <button
+                                onClick={() => copyLink(code.short_code)}
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-zinc-700 hover:border-[var(--cyan)] hover:shadow-[0_0_18px_rgba(34,211,238,0.45)] transition"
+                              >
+                                <Copy className="w-4 h-4" />
+                                Copy Link
+                              </button>
+
+                              <button
+                                onClick={() => deleteQRCode(code.id)}
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-500/40 text-red-400 hover:border-red-500 hover:bg-red-500/10 transition"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
     </VantaBackground>
+  );
+}
+
+function StatCard({ title, value, icon, subtitle }) {
+  return (
+    <div className="card p-5 sm:p-6 flex items-center justify-between gap-4">
+      <div className="min-w-0">
+        <p className="text-sm text-muted truncate">{title}</p>
+        <h3 className="text-xl sm:text-2xl font-extrabold mt-2 truncate">
+          {value}
+        </h3>
+        {subtitle && <p className="text-xs text-zinc-400 mt-1">{subtitle}</p>}
+      </div>
+
+      <div className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/5 border border-zinc-800 shrink-0">
+        {icon}
+      </div>
+    </div>
   );
 }

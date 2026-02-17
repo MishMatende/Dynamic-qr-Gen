@@ -90,19 +90,21 @@ serve(async (req) => {
 
     // Insert scan log
     const { error: scanError } = await supabase.from("qr_scans").insert([
-      {
-        qr_code_id: qr.id,
-        scanned_at: new Date().toISOString(),
-        user_agent: userAgent,
-        referer: referer,
-        device_type: deviceType,
-        browser: browser,
-        os: os,
-        country: null,
-        city: null,
-        ip_address: null,
-      },
-    ]);
+  {
+    qr_code_id: qr.id,
+    short_code: code.trim(),   // ✅ ADD THIS
+    scanned_at: new Date().toISOString(),
+    user_agent: userAgent,
+    referer: referer,
+    device_type: deviceType,
+    browser: browser,
+    os: os,
+    country: null,
+    city: null,
+    ip_address: null,
+  },
+]);
+
 
     if (scanError) {
       console.error("Scan insert error:", scanError);

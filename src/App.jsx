@@ -86,6 +86,19 @@ export default function App() {
         }
       />
 
+      <Route
+        path="/create/:id"
+        element={
+          <ProtectedRoute>
+            {
+              <MainLayout>
+                <CreateQR />
+              </MainLayout>
+            }
+          </ProtectedRoute>
+        }
+      />
+
       {/* Create QR */}
       <Route
         path="/create"

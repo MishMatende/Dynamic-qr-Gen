@@ -6,12 +6,15 @@ import { toPng } from "html-to-image";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import QRCode from "qrcode-generator";
+import { useParams } from "react-router-dom";
 
 export default function CreateQR() {
   const qrRef = useRef(null);
   const qrCode = useRef(null);
   const frameRef = useRef(null);
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditing = !!id;
 
   // Saving QR
   const [saving, setSaving] = useState(false);
@@ -180,21 +183,34 @@ export default function CreateQR() {
 
     setSaving(true);
 
-    const { data, error } = await supabase
-      .from("qr_codes")
-      .insert([
-        {
-          user_id: user.id,
-          destination_url: url,
-          design: designData,
-        },
-      ])
-      .select("id, short_code")
-      .single();
+    const { data, error } = isEditing
+      ? await supabase
+          .from("qr_codes")
+          .update({
+            destination_url: url,
+            design: designData,
+          })
+          .eq("id", id)
+          .select("id, short_code")
+          .single()
+      : await supabase
+          .from("qr_codes")
+          .insert([
+            {
+              user_id: user.id,
+              destination_url: url,
+              design: designData,
+            },
+          ])
+          .select("id, short_code")
+          .single();
 
     if (data) {
-      console.log("Short Code:", data.short_code);
-      setSaveMessage(`Saved! Short Code: ${data.short_code}`);
+      setSaveMessage(
+        isEditing
+          ? "QR Code updated successfully!"
+          : "QR Code saved successfully!",
+      );
     }
 
     setSaving(false);
@@ -205,8 +221,11 @@ export default function CreateQR() {
       return;
     }
 
-    setSaveMessage("QR Code saved successfully!");
-    console.log("Saved QR:", data);
+    setSaveMessage(
+      isEditing
+        ? "QR Code updated successfully!"
+        : "QR Code saved successfully!",
+    );
   };
 
   // Update QR Code
@@ -418,6 +437,75 @@ export default function CreateQR() {
     qr.make();
     return qr.getModuleCount();
   };
+
+  useEffect(() => {
+    if (!id) return;
+
+    const fetchQR = async () => {
+      const { data, error } = await supabase
+        .from("qr_codes")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      if (!data?.design) return;
+
+      const d = data.design;
+
+      setUrl(d.url ?? data.destination_url ?? "");
+      setSize(d.size ?? 320);
+      setMargin(d.margin ?? 10);
+      setErrorCorrection(d.errorCorrection ?? "H");
+
+      setDotStyle(d.dotStyle ?? "rounded");
+      setDotColor(d.dotColor ?? "#000000");
+
+      setBgColor(d.bgColor ?? "#ffffff");
+
+      setCornerSquareStyle(d.cornerSquareStyle ?? "extra-rounded");
+      setCornerSquareColor(d.cornerSquareColor ?? "#000000");
+
+      setCornerDotStyle(d.cornerDotStyle ?? "dot");
+      setCornerDotColor(d.cornerDotColor ?? "#000000");
+
+      setUseGradient(d.useGradient ?? false);
+      setGradientType(d.gradientType ?? "linear");
+      setGradientColor1(d.gradientColor1 ?? "#22d3ee");
+      setGradientColor2(d.gradientColor2 ?? "#ffffff");
+      setGradientRotation(d.gradientRotation ?? 0);
+
+      setFrameEnabled(d.frameEnabled ?? false);
+      setFrameStyle(d.frameStyle ?? "rounded");
+      setFrameBg(d.frameBg ?? "#ffffff");
+      setFrameBorder(d.frameBorder ?? "#22d3ee");
+      setFramePadding(d.framePadding ?? 18);
+      setFrameBorderWidth(d.frameBorderWidth ?? 3);
+
+      setQrTitle(d.qrTitle ?? "My QR Code");
+      setQrTitleColor(d.qrTitleColor ?? "#000000");
+      setQrTitleSize(d.qrTitleSize ?? 20);
+      setQrTitleWeight(d.qrTitleWeight ?? "700");
+      setQrTitleFont(d.qrTitleFont ?? "Poppins");
+
+      setFrameText(d.frameText ?? "Scan Me!");
+      setFrameTextColor(d.frameTextColor ?? "#000000");
+      setFrameTextSize(d.frameTextSize ?? 16);
+      setFrameTextWeight(d.frameTextWeight ?? "600");
+      setFrameTextFont(d.frameTextFont ?? "Poppins");
+
+      setLogo(d.logo ?? null);
+      setLogoSize(d.logoSize ?? 0.3);
+      setLogoMargin(d.logoMargin ?? 6);
+      setHideBackgroundDots(d.hideBackgroundDots ?? true);
+    };
+
+    fetchQR();
+  }, [id]);
 
   return (
     <VantaBackground overlayOpacity={0.84}>
@@ -874,7 +962,7 @@ export default function CreateQR() {
                       className={`relative w-12 h-7 rounded-full transition cursor-pointer duration-300 border ${
                         useGradient
                           ? "bg-[var(--cyan)] border-[var(--cyan)]"
-                          : "bg-zinc-900 border-zinc-700"
+                          : "bg-white border-white"
                       }`}
                     >
                       <span
