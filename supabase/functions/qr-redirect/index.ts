@@ -33,6 +33,14 @@ function detectOS(userAgent: string) {
   return "Unknown";
 }
 
+function createScanFingerprint(
+  qrCodeId: string,
+  userAgent: string,
+  referer: string | null
+) {
+  return `${qrCodeId}:${userAgent}:${referer || "direct"}`;
+}
+
 serve(async (req) => {
   try {
     const url = new URL(req.url);
@@ -59,13 +67,13 @@ serve(async (req) => {
       );
     }
 
-    // IMPORTANT: use Service Role Key for insert
+    // Use Service Role Key
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Fetch QR Code
     const { data: qr, error } = await supabase
       .from("qr_codes")
-      .select("id, destination_url")
+      .select("id, destination_url, short_code")
       .eq("short_code", code.trim())
       .maybeSingle();
 
@@ -88,26 +96,46 @@ serve(async (req) => {
     const browser = detectBrowser(userAgent);
     const os = detectOS(userAgent);
 
-    // Insert scan log
-    const { error: scanError } = await supabase.from("qr_scans").insert([
-  {
-    qr_code_id: qr.id,
-    short_code: code.trim(),   // ✅ ADD THIS
-    scanned_at: new Date().toISOString(),
-    user_agent: userAgent,
-    referer: referer,
-    device_type: deviceType,
-    browser: browser,
-    os: os,
-    country: null,
-    city: null,
-    ip_address: null,
-  },
-]);
+    // Anti-spam cooldown
+    const cooldownSeconds = 10;
+    const cutoff = new Date(Date.now() - cooldownSeconds * 1000).toISOString();
 
+    const fingerprint = createScanFingerprint(qr.id, userAgent, referer);
 
-    if (scanError) {
-      console.error("Scan insert error:", scanError);
+    // Check if scan already exists in last 10 seconds
+    const { data: recentScan, error: recentError } = await supabase
+      .from("qr_scans")
+      .select("id")
+      .eq("scan_fingerprint", fingerprint)
+      .gte("scanned_at", cutoff)
+      .maybeSingle();
+
+    if (recentError) {
+      console.error("Recent scan check error:", recentError);
+    }
+
+    // If scan exists, skip inserting (avoid spam)
+    if (!recentScan) {
+      const { error: scanError } = await supabase.from("qr_scans").insert([
+        {
+          qr_code_id: qr.id,
+          short_code: code.trim(),
+          scan_fingerprint: fingerprint,
+          scanned_at: new Date().toISOString(),
+          user_agent: userAgent,
+          referer: referer,
+          device_type: deviceType,
+          browser: browser,
+          os: os,
+          country: null,
+          city: null,
+          ip_address: null,
+        },
+      ]);
+
+      if (scanError) {
+        console.error("Scan insert error:", scanError);
+      }
     }
 
     // Redirect user

@@ -79,6 +79,13 @@ export default function CreateQR() {
   const [logoMargin, setLogoMargin] = useState(6);
   const [hideBackgroundDots, setHideBackgroundDots] = useState(true);
 
+  // Redirect
+  const [shortCode, setShortCode] = useState(null);
+
+  const redirectUrl = shortCode
+    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/qr-redirect/${shortCode}`
+    : url;
+
   // Init QR Code ONCE
   useLayoutEffect(() => {
     if (!qrRef.current) return;
@@ -86,7 +93,8 @@ export default function CreateQR() {
     qrCode.current = new QRCodeStyling({
       width: size,
       height: size,
-      data: url,
+      type: "svg", // ✅ IMPORTANT FIX
+      data: redirectUrl,
       margin: margin,
       qrOptions: {
         errorCorrectionLevel: errorCorrection,
@@ -106,7 +114,6 @@ export default function CreateQR() {
         type: "square",
         color: cornerDotStyle === "diamond" ? "transparent" : cornerDotColor,
       },
-
       image: logo,
       imageOptions: {
         crossOrigin: "anonymous",
@@ -226,6 +233,10 @@ export default function CreateQR() {
         ? "QR Code updated successfully!"
         : "QR Code saved successfully!",
     );
+
+    if (data?.short_code) {
+      setShortCode(data.short_code);
+    }
   };
 
   // Update QR Code
@@ -258,7 +269,7 @@ export default function CreateQR() {
     qrCode.current.update({
       width: size,
       height: size,
-      data: url,
+      data: redirectUrl,
       margin: margin,
       qrOptions: {
         errorCorrectionLevel: errorCorrection,
@@ -305,6 +316,7 @@ export default function CreateQR() {
     gradientColor1,
     gradientColor2,
     gradientRotation,
+    redirectUrl,
   ]);
 
   // Upload Logo
@@ -320,9 +332,113 @@ export default function CreateQR() {
   };
 
   // Download QR
-  const downloadQR = (format) => {
-    if (!qrCode.current) return;
-    qrCode.current.download({ name: "DynamicCodes", extension: format });
+  const downloadFramedSVG = async () => {
+    if (!frameRef.current) return;
+
+    const qrSvgEl = qrRef.current?.querySelector("svg");
+    if (!qrSvgEl) {
+      console.error(
+        "QR SVG not found. Ensure QRCodeStyling is using type: 'svg'",
+      );
+      return;
+    }
+
+    const qrSvgString = qrSvgEl.outerHTML;
+
+    const titleEnabled = qrTitle.trim() !== "";
+    const textEnabled = frameEnabled && frameText.trim() !== "";
+
+    const titleHeight = titleEnabled ? qrTitleSize + 20 : 0;
+    const textHeight = textEnabled ? frameTextSize + 20 : 0;
+
+    const padding = frameEnabled ? framePadding : 0;
+    const borderWidth = frameEnabled ? frameBorderWidth : 0;
+
+    const totalWidth = size + padding * 2 + borderWidth * 2;
+    const totalHeight =
+      size + padding * 2 + borderWidth * 2 + titleHeight + textHeight;
+
+    const radius =
+      frameEnabled && frameStyle === "rounded"
+        ? 22
+        : frameEnabled && frameStyle === "square"
+          ? 10
+          : frameEnabled && frameStyle === "pill"
+            ? 50
+            : 22;
+
+    const bg = frameEnabled ? frameBg : "transparent";
+    const border = frameEnabled ? frameBorder : "transparent";
+
+    const titleY = padding + borderWidth + qrTitleSize;
+    const qrY = padding + borderWidth + titleHeight;
+    const frameTextY = qrY + size + frameTextSize + 10;
+
+    const svg = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${totalHeight}">
+    <rect 
+      x="0" 
+      y="0" 
+      width="${totalWidth}" 
+      height="${totalHeight}" 
+      rx="${radius}" 
+      ry="${radius}"
+      fill="${bg}"
+      stroke="${border}"
+      stroke-width="${borderWidth}"
+    />
+
+    ${
+      titleEnabled
+        ? `
+      <text 
+        x="${totalWidth / 2}" 
+        y="${titleY}"
+        fill="${qrTitleColor}"
+        font-size="${qrTitleSize}"
+        font-family="${qrTitleFont}"
+        font-weight="${qrTitleWeight}"
+        text-anchor="middle"
+      >
+        ${qrTitle}
+      </text>
+    `
+        : ""
+    }
+
+    <g transform="translate(${padding + borderWidth}, ${qrY})">
+      ${qrSvgString}
+    </g>
+
+    ${
+      textEnabled
+        ? `
+      <text 
+        x="${totalWidth / 2}" 
+        y="${frameTextY}"
+        fill="${frameTextColor}"
+        font-size="${frameTextSize}"
+        font-family="${frameTextFont}"
+        font-weight="${frameTextWeight}"
+        text-anchor="middle"
+      >
+        ${frameText}
+      </text>
+    `
+        : ""
+    }
+  </svg>
+  `;
+
+    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "DynamicCodes-framed.svg";
+    link.click();
+
+    URL.revokeObjectURL(url);
   };
 
   const downloadFramedPNG = async () => {
@@ -332,7 +448,7 @@ export default function CreateQR() {
       const dataUrl = await toPng(frameRef.current, {
         cacheBust: true,
         pixelRatio: 3,
-        backgroundColor: frameEnabled ? frameBg : "#000000",
+        backgroundColor: frameEnabled ? frameBg : "transparent",
       });
 
       const link = document.createElement("a");
@@ -502,6 +618,8 @@ export default function CreateQR() {
       setLogoSize(d.logoSize ?? 0.3);
       setLogoMargin(d.logoMargin ?? 6);
       setHideBackgroundDots(d.hideBackgroundDots ?? true);
+
+      setShortCode(data.short_code);
     };
 
     fetchQR();
@@ -1235,7 +1353,7 @@ export default function CreateQR() {
               </button>
 
               <button
-                onClick={() => downloadQR("svg")}
+                onClick={downloadFramedSVG}
                 className="btn-outline cursor-pointer w-full"
               >
                 Download SVG
