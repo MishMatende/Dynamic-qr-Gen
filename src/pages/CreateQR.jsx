@@ -5,6 +5,7 @@ import ColorPicker from "../components/ColorPicker";
 import { toPng } from "html-to-image";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
+import QRCode from "qrcode-generator";
 
 export default function CreateQR() {
   const qrRef = useRef(null);
@@ -28,17 +29,17 @@ export default function CreateQR() {
 
   // Dots style
   const [dotStyle, setDotStyle] = useState("rounded");
-  const [dotColor, setDotColor] = useState("#22d3ee");
+  const [dotColor, setDotColor] = useState("#000000");
 
   // Background
-  const [bgColor, setBgColor] = useState("#000000");
+  const [bgColor, setBgColor] = useState("#ffffff");
 
   // Corners
   const [cornerSquareStyle, setCornerSquareStyle] = useState("extra-rounded");
-  const [cornerSquareColor, setCornerSquareColor] = useState("#ffffff");
+  const [cornerSquareColor, setCornerSquareColor] = useState("#000000");
 
   const [cornerDotStyle, setCornerDotStyle] = useState("dot");
-  const [cornerDotColor, setCornerDotColor] = useState("#22d3ee");
+  const [cornerDotColor, setCornerDotColor] = useState("#000000");
 
   // Gradient
   const [useGradient, setUseGradient] = useState(false);
@@ -48,7 +49,7 @@ export default function CreateQR() {
   const [gradientRotation, setGradientRotation] = useState(0);
 
   //Frames
-  const [frameEnabled, setFrameEnabled] = useState(true);
+  const [frameEnabled, setFrameEnabled] = useState(false);
   const [frameStyle, setFrameStyle] = useState("rounded");
   const [frameBg, setFrameBg] = useState("#ffffff");
   const [frameBorder, setFrameBorder] = useState("#22d3ee");
@@ -89,9 +90,10 @@ export default function CreateQR() {
         color: cornerSquareColor,
       },
       cornersDotOptions: {
-        type: cornerDotStyle,
-        color: cornerDotColor,
+        type: "square",
+        color: cornerDotStyle === "diamond" ? "transparent" : cornerDotColor,
       },
+
       image: logo,
       imageOptions: {
         crossOrigin: "anonymous",
@@ -232,9 +234,10 @@ export default function CreateQR() {
         color: cornerSquareColor,
       },
       cornersDotOptions: {
-        type: cornerDotStyle,
-        color: cornerDotColor,
+        type: "square",
+        color: cornerDotStyle === "diamond" ? "transparent" : cornerDotColor,
       },
+
       image: logo,
       imageOptions: {
         crossOrigin: "anonymous",
@@ -319,6 +322,83 @@ export default function CreateQR() {
       {label}
     </button>
   );
+
+  const DiamondCornerDots = ({ size, margin, color, url, errorCorrection }) => {
+    const moduleCount = getQRModuleCount(url, errorCorrection);
+    const moduleSize = (size - margin * 2) / moduleCount;
+
+    const topLeftX = margin;
+    const topLeftY = margin;
+
+    const topRightX = margin + moduleSize * (moduleCount - 8);
+    const topRightY = margin;
+
+    const bottomLeftX = margin;
+    const bottomLeftY = margin + moduleSize * (moduleCount - 8);
+
+    const baseShift = moduleSize * 3.5;
+    const correction = moduleSize * 0.35;
+
+    const tlShiftX = baseShift + correction;
+    const tlShiftY = baseShift + correction;
+
+    const trShiftX = baseShift + correction + moduleSize * 0.18; // tiny right push
+    const trShiftY = baseShift + correction;
+
+    const blShiftX = baseShift + correction;
+    const blShiftY = baseShift + correction + moduleSize * 0.18; // tiny down push
+
+    const diamondSize = moduleSize * 1.8;
+
+    const style = {
+      width: `${diamondSize}px`,
+      height: `${diamondSize}px`,
+      backgroundColor: color,
+      position: "absolute",
+      transform: "translate(-50%, -50%) rotate(45deg)",
+      borderRadius: "2px",
+      zIndex: 999,
+      pointerEvents: "none",
+    };
+
+    return (
+      <>
+        {/* Top Left */}
+        <div
+          style={{
+            ...style,
+            left: topLeftX + tlShiftX,
+            top: topLeftY + tlShiftY,
+          }}
+        />
+
+        {/* Top Right */}
+        <div
+          style={{
+            ...style,
+            left: topRightX + trShiftX,
+            top: topRightY + trShiftY,
+          }}
+        />
+
+        {/* Bottom Left */}
+        <div
+          style={{
+            ...style,
+            left: bottomLeftX + blShiftX,
+            top: bottomLeftY + blShiftY,
+          }}
+        />
+      </>
+    );
+  };
+
+  const getQRModuleCount = (data, errorCorrection) => {
+    const qr = QRCode(0, errorCorrection);
+    qr.addData(data);
+    qr.make();
+    return qr.getModuleCount();
+  };
 
   return (
     <VantaBackground overlayOpacity={0.84}>
@@ -626,6 +706,7 @@ export default function CreateQR() {
                       >
                         <option value="square">Square</option>
                         <option value="dot">Dot</option>
+                        <option value="diamond">Diamond</option>
                       </select>
                     </div>
                   </div>
@@ -849,9 +930,27 @@ export default function CreateQR() {
                   }}
                 >
                   <div
-                    ref={qrRef}
-                    className="bg-black rounded-2xl flex items-center justify-center"
-                  ></div>
+                    className="relative"
+                    style={{
+                      width: `${size}px`,
+                      height: `${size}px`,
+                    }}
+                  >
+                    <div
+                      ref={qrRef}
+                      className="rounded-2xl flex items-center justify-center w-full h-full"
+                    ></div>
+
+                    {cornerDotStyle === "diamond" && (
+                      <DiamondCornerDots
+                        size={size}
+                        margin={margin}
+                        color={cornerDotColor}
+                        url={url}
+                        errorCorrection={errorCorrection}
+                      />
+                    )}
+                  </div>
 
                   {frameEnabled && frameText.trim() !== "" && (
                     <p
