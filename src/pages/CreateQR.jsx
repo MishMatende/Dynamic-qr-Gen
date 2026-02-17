@@ -56,9 +56,19 @@ export default function CreateQR() {
   const [framePadding, setFramePadding] = useState(18);
   const [frameBorderWidth, setFrameBorderWidth] = useState(3);
 
+  // Title (New)
+  const [qrTitle, setQrTitle] = useState("My QR Code");
+  const [qrTitleColor, setQrTitleColor] = useState("#000000");
+  const [qrTitleSize, setQrTitleSize] = useState(20);
+  const [qrTitleWeight, setQrTitleWeight] = useState("700");
+  const [qrTitleFont, setQrTitleFont] = useState("Poppins");
+
+  // Frame Text
   const [frameText, setFrameText] = useState("Scan Me!");
   const [frameTextColor, setFrameTextColor] = useState("#000000");
   const [frameTextSize, setFrameTextSize] = useState(16);
+  const [frameTextWeight, setFrameTextWeight] = useState("600");
+  const [frameTextFont, setFrameTextFont] = useState("Poppins");
 
   // Logo
   const [logo, setLogo] = useState(null);
@@ -149,9 +159,18 @@ export default function CreateQR() {
       frameBorder,
       framePadding,
       frameBorderWidth,
+
+      qrTitle,
+      qrTitleColor,
+      qrTitleSize,
+      qrTitleWeight,
+      qrTitleFont,
+
       frameText,
       frameTextColor,
       frameTextSize,
+      frameTextWeight,
+      frameTextFont,
 
       logo,
       logoSize,
@@ -423,7 +442,7 @@ export default function CreateQR() {
               {/* Tabs */}
               <div className="flex flex-wrap gap-3 mb-8">
                 <TabButton id="basic" label="Basic" />
-                <TabButton id="frame" label="frame" />
+                <TabButton id="frame" label="Frame" />
                 <TabButton id="design" label="Design" />
                 <TabButton id="gradient" label="Gradient" />
                 <TabButton id="logo" label="Logo" />
@@ -528,10 +547,10 @@ export default function CreateQR() {
                     <button
                       type="button"
                       onClick={() => setFrameEnabled(!frameEnabled)}
-                      className={`relative w-12 h-7 rounded-full transition duration-300 cursor-pointer border ${
+                      className={`relative w-12 h-7 rounded-full transition duration-300 cursor-pointer border border ${
                         frameEnabled
                           ? "bg-[var(--cyan)] border-[var(--cyan)]"
-                          : "bg-zinc-900 border-zinc-700"
+                          : "bg-white border-white"
                       }`}
                     >
                       <span
@@ -556,6 +575,79 @@ export default function CreateQR() {
                       <option value="square">Square</option>
                       <option value="pill">Pill</option>
                     </select>
+                  </div>
+
+                  {/* Title */}
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">
+                      QR Title
+                    </label>
+                    <input
+                      value={qrTitle}
+                      onChange={(e) => setQrTitle(e.target.value)}
+                      className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
+                      placeholder="My QR Code"
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <ColorPicker
+                      label="Title Color"
+                      color={qrTitleColor}
+                      setColor={setQrTitleColor}
+                    />
+
+                    <div>
+                      <label className="block text-sm font-semibold mb-2">
+                        Title Size ({qrTitleSize}px)
+                      </label>
+                      <input
+                        type="range"
+                        min="12"
+                        max="40"
+                        value={qrTitleSize}
+                        onChange={(e) => setQrTitleSize(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-semibold mb-2">
+                        Title Weight
+                      </label>
+                      <select
+                        value={qrTitleWeight}
+                        onChange={(e) => setQrTitleWeight(e.target.value)}
+                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
+                      >
+                        <option value="400">Regular</option>
+                        <option value="500">Medium</option>
+                        <option value="600">Semi Bold</option>
+                        <option value="700">Bold</option>
+                        <option value="800">Extra Bold</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold mb-2">
+                        Title Font
+                      </label>
+                      <select
+                        value={qrTitleFont}
+                        onChange={(e) => setQrTitleFont(e.target.value)}
+                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
+                      >
+                        <option value="Poppins">Poppins</option>
+                        <option value="Inter">Inter</option>
+                        <option value="Montserrat">Montserrat</option>
+                        <option value="Roboto">Roboto</option>
+                        <option value="Arial">Arial</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Courier New">Courier New</option>
+                      </select>
+                    </div>
                   </div>
 
                   {/* Colors */}
@@ -641,6 +733,44 @@ export default function CreateQR() {
                         }
                         className="w-full"
                       />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-semibold mb-2">
+                        Text Weight
+                      </label>
+                      <select
+                        value={frameTextWeight}
+                        onChange={(e) => setFrameTextWeight(e.target.value)}
+                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
+                      >
+                        <option value="400">Regular</option>
+                        <option value="500">Medium</option>
+                        <option value="600">Semi Bold</option>
+                        <option value="700">Bold</option>
+                        <option value="800">Extra Bold</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold mb-2">
+                        Frame Text Font
+                      </label>
+                      <select
+                        value={frameTextFont}
+                        onChange={(e) => setFrameTextFont(e.target.value)}
+                        className="w-full rounded-xl bg-black border border-zinc-800 px-4 py-3 text-sm outline-none focus:border-[var(--cyan)]"
+                      >
+                        <option value="Poppins">Poppins</option>
+                        <option value="Inter">Inter</option>
+                        <option value="Montserrat">Montserrat</option>
+                        <option value="Roboto">Roboto</option>
+                        <option value="Arial">Arial</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Courier New">Courier New</option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -929,6 +1059,21 @@ export default function CreateQR() {
                     transition: "0.25s ease",
                   }}
                 >
+                  {/* QR Title */}
+                  {qrTitle.trim() !== "" && (
+                    <p
+                      className="mb-4 text-center tracking-wide"
+                      style={{
+                        color: qrTitleColor,
+                        fontSize: `${qrTitleSize}px`,
+                        fontWeight: qrTitleWeight,
+                        fontFamily: qrTitleFont,
+                      }}
+                    >
+                      {qrTitle}
+                    </p>
+                  )}
+
                   <div
                     className="relative"
                     style={{
@@ -952,12 +1097,15 @@ export default function CreateQR() {
                     )}
                   </div>
 
+                  {/* Frame Text */}
                   {frameEnabled && frameText.trim() !== "" && (
                     <p
-                      className="mt-4 font-semibold tracking-wide"
+                      className="mt-4 tracking-wide text-center"
                       style={{
                         color: frameTextColor,
                         fontSize: `${frameTextSize}px`,
+                        fontWeight: frameTextWeight,
+                        fontFamily: frameTextFont,
                       }}
                     >
                       {frameText}
